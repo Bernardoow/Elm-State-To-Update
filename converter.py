@@ -13,6 +13,14 @@ import re
 
 class BaseConvertCommand(sublime_plugin.TextCommand):
     pattern_file = re.compile(r"(.*).py$")
+    # MudarColunaResult (Result Http.Error SubTarefa)
+    # pattern_http = re.compile(r"(.*)Result Http.Error(.*)")
+    # pattern_http = re.compile(r"((.*)\(Result Http.Error (\w+)\) | (.*)\(Result Http.Error (\(\w+ \w+\) )\))")
+    # pattern_http = re.compile(r"")
+    regex_without_list = "(.*)\(Result Http.Error (\w+)\)"
+    regex_with_list = "(.*)\(Result Http.Error (\(\w+ \w+\))"
+    pattern_http = re.compile(r"("+regex_without_list +"|"+regex_with_list + ")")
+    print(pattern_http)
     TO_CLIPBOARD = False
 
     def run(self, edit):
@@ -42,6 +50,7 @@ class BaseConvertCommand(sublime_plugin.TextCommand):
 
         }
         for param in list_of_params:
+            param = param.replace("(", " ( ").replace(")", " ) ") 
             if param not in dict_params:
                 dict_params.update({param : {'name': param.lower(), 'count': 0}})
             _param = dict_params[param]
@@ -55,13 +64,23 @@ class BaseConvertCommand(sublime_plugin.TextCommand):
     def _return_params_http(self, text):
         #"TODO"
         #if was tuple?
+        matchObj = self.pattern_http.match(text)
+        if matchObj:
+            
+            if matchObj.group(4) and matchObj.group(5):
+                text_to_return = matchObj.group(4) + "( Err error) -> \n     model ! [] \n"
+                text_to_return += matchObj.group(4) + "( Ok "+ matchObj.group(5).lower().replace(" ", "")  + ") -> \n     model ! [] \n"
+            else:    
+                text_to_return = matchObj.group(2) + "( Err error) -> \n     model ! [] \n"
+                text_to_return += matchObj.group(2) + "( Ok "+ matchObj.group(3).lower()  + ") -> \n     model ! [] \n"
+            return text_to_return
 
         return ""
 
     def _finish_text(self, text, params=None):
         if params:
-            return text + params +" ->\n model ! []" + "\n"
-        return text +" ->\n model ! []" + "\n"
+            return " " + text + params +" ->\n     model ! []" + "\n"
+        return " " + text +" ->\n     model ! []" + "\n"
 
     def find_class_and_fields(self, view, edit):
         for region in view.sel():
@@ -69,10 +88,10 @@ class BaseConvertCommand(sublime_plugin.TextCommand):
                 region_text = view.substr(region)
                 region_text_splited = region_text.split("=")
                 if len(region_text_splited) > 1:
-                    text_to_return = " "
+                    text_to_return = ""
                     for index, text in enumerate(region_text_splited[1].split('|')):
                         if self._check_http(text):
-                            pass
+                            text_to_return += self._return_params_http(text)
                         else: 
                             text_splited = text.strip().split(" ")
                             if text_splited:
